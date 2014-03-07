@@ -1,5 +1,6 @@
 (ns jhat.core
   (:require [lamina.core :refer [siphon enqueue receive-all enqueue-and-close]]
+            [lamina.core.channel :refer [channel]]
             [aleph.tcp :refer [start-tcp-server]]
             [gloss.core :refer [string]]
             [clojure.string :as s]))
@@ -8,13 +9,15 @@
 (defn echo-handler [channel client-info]
   (siphon channel channel))
 
-(defn handle-message [ch m]
-  (prn m)
-  (cond (= (s/trim-newline (str m)) "q") (enqueue-and-close ch "Goodbye!")
-        :else (enqueue ch (str "You said " m))))
+(def broadcast-channel (channel))
 
-(defn handler [ch client-into]
-  (receive-all ch #(handle-message ch %)))
+(defn handle-message [ch m]
+  (cond (= m "q") (enqueue-and-close ch "Goodbye!")
+        :else (enqueue broadcast-channel (str "Someone said " m))))
+
+(defn handler [ch client-info]
+  (receive-all ch #(handle-message ch %))
+  (siphon broadcast-channel ch))
 
 (comment
   (start-tcp-server echo-handler {:port 1234})
